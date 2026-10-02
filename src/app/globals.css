@@ -1,0 +1,78 @@
+:root {
+  --bg: #f6f7f9;
+  --card: #fff;
+  --ink: #15181e;
+  --muted: #5d6675;
+  --line: #e2e5ea;
+  --brand: #3b5bfd;
+  --brand-ink: #fff;
+  --ok: #12805c;
+  --warn: #a15c00;
+  --bad: #c0392b;
+  --warn-bg: #fff6e5;
+  --bad-bg: #fdecea;
+  --ok-bg: #e7f6ef;
+  --info-bg: #eef2ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --card: #181b22;
+    --ink: #eceff4;
+    --muted: #9aa3b2;
+    --line: #2a2f3a;
+    --brand: #7b92ff;
+    --brand-ink: #0f1115;
+    --ok: #4cc9a0;
+    --warn: #f0b252;
+    --bad: #ff8577;
+    --warn-bg: #2b2415;
+    --bad-bg: #2c1a18;
+    --ok-bg: #14261f;
+    --info-bg: #1b2036;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.55 -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', sans-serif; }
+a { color: var(--brand); }
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
+header.top .brand { font-weight: 700; text-decoration: none; color: var(--ink); letter-spacing: -0.02em; }
+header.top .demo { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -0.02em; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+.grid { display: grid; gap: 12px; }
+.listing { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--info-bg); color: var(--brand); margin-right: 6px; }
+label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 4px; }
+select, input[type='date'] { width: 100%; padding: 10px 12px; font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+.row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+@media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+button, .btn { display: inline-block; padding: 12px 16px; font: inherit; font-weight: 600; border-radius: 10px; border: 1px solid var(--brand); background: var(--brand); color: var(--brand-ink); cursor: pointer; text-decoration: none; text-align: center; }
+button.secondary, .btn.secondary { background: transparent; color: var(--brand); }
+button.danger { background: transparent; color: var(--bad); border-color: var(--bad); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.block, .btn.block { display: block; width: 100%; }
+.stack > * + * { margin-top: 12px; }
+.notice { padding: 10px 12px; border-radius: 8px; font-size: 14px; }
+.notice.info { background: var(--info-bg); }
+.notice.warn { background: var(--warn-bg); color: var(--warn); }
+.notice.bad { background: var(--bad-bg); color: var(--bad); }
+.notice.ok { background: var(--ok-bg); color: var(--ok); }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.kv:last-child { border-bottom: 0; }
+.kv span:first-child { color: var(--muted); }
+.price { font-size: 22px; font-weight: 700; }
+.spinner { width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--brand); display: inline-block; animation: spin 0.9s linear infinite; vertical-align: -3px; margin-right: 8px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.muted { color: var(--muted); }
+.cells { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 4px; margin-top: 8px; }
+.cell { font-size: 11px; text-align: center; padding: 4px 0; border-radius: 6px; background: var(--ok-bg); color: var(--ok); }
+.cell.busy { background: var(--bad-bg); color: var(--bad); text-decoration: line-through; }
+.cell.sel { outline: 2px solid var(--brand); }
+.pg { max-width: 420px; margin: 32px auto; }
+.pg .card { border-color: var(--brand); }
+.pg .banner { font-size: 12px; text-align: center; color: var(--muted); margin-bottom: 12px; }
