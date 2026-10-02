@@ -1,0 +1,113 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1'
+
+jobs:
+  test:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: slatebook
+          POSTGRES_PASSWORD: slatebook
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U slatebook"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      # 통합 테스트는 이 서버에 임시 DB 를 만들었다 지운다 (실제 PostgreSQL — 동시성·제약·잠금은 가짜 DB 로 검증할 수 없다)
+      TEST_DATABASE_URL: postgres://slatebook:slatebook@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  e2e:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: slatebook
+          POSTGRES_PASSWORD: slatebook
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U slatebook"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      E2E_DATABASE_URL: postgres://slatebook:slatebook@localhost:5432/slatebook_e2e
+      DATABASE_URL: postgres://slatebook:slatebook@localhost:5432/slatebook_e2e
+      PAYMENT_GATEWAY: fake
+      NEXT_PUBLIC_PAYMENT_MODE: fake
+      DEMO_AUTH: '1'
+      ALLOW_FAKE_GATEWAY: '1'
+      ALLOW_DEMO_AUTH: '1'
+      RUN_JOBS_IN_PROCESS: '1'
+      LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare e2e database
+        run: |
+          PGPASSWORD=slatebook psql -h localhost -U slatebook -d postgres -c 'CREATE DATABASE slatebook_e2e'
+          npm run db:migrate
+          npm run db:seed
+      - run: npm run build
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+
+  # 테스트가 정말 실패할 수 있는지 확인하는 변이 검사. 시간이 걸려서 수동·주간으로만 돈다.
+  mutation:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: slatebook
+          POSTGRES_PASSWORD: slatebook
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U slatebook"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://slatebook:slatebook@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run mutation-check
