@@ -42,6 +42,8 @@ docker compose --profile demo up --build
 배포용 컨테이너(`deploy/render-demo/`)는 PostgreSQL 16 과 Next.js 를 한 이미지에 담아 무료 웹 서비스 하나로 데모를 띄웁니다. 알아둘 점: **인스턴스는 하나여야 하고**(가짜 PG 의 상태가 프로세스 메모리에 있습니다), 재시작마다 데이터가 초기화되며 시드가 다시 채워지고, 무료 플랜은 15분 무접속이면 잠듭니다.
 이미지는 이 개발 환경에서 직접 빌드해 실행해 봤습니다: 컨테이너 안에서 initdb → 마이그레이션 → 시드 → 서버 기동 → `/api/health` 까지 올라오고, API 로 예약 → (PG 타임아웃 시나리오) 결제 → 대사로 `CONFIRMED`, 같은 시간대 재예약은 `409 SLOT_TAKEN` 이 나오는 것까지 확인했습니다. 다만 이 환경의 네트워크 프록시가 npm 레지스트리 TLS 를 다시 서명해서 **검증용으로 프록시 CA 를 주입한 변형 Dockerfile 로 빌드**했습니다 — 저장소의 `Dockerfile` 자체를 그대로 빌드한 것은 아니고, 실제 Render 에서의 첫 빌드는 아직 해보지 못했습니다.
 
+**Render 설정에서 막히기 쉬운 곳:** 서비스는 반드시 **Blueprint(= Docker 런타임)** 로 만들어야 합니다. 직접 "New Web Service" 로 Node 런타임을 고르면 이 저장소의 `Dockerfile`·`start.sh` 가 쓰이지 않아 DB 가 없고, 서버가 `DATABASE_URL is required` 로 기동을 중단하거나(현재 코드) 첫 화면에서 서버 오류(이전 코드)가 납니다. Docker 런타임이라면 "Docker Command" 칸은 **비워 두세요**(채우면 `start.sh` 가 실행되지 않습니다). 설정이 잘못되면 첫 요청이 아니라 기동 시점에 분명한 메시지로 종료되도록 해 두었습니다 (`src/instrumentation-node.ts`, 테스트는 `tests/unit/config.test.ts`).
+
 데모 영상과 스크린샷은 스크립트로 만들어집니다 (`npm run demo:record`, 실제 브라우저로 시나리오를 따라가고 ffmpeg 로 GIF 변환).
 
 ## 이 프로젝트가 보여주려는 것
@@ -75,7 +77,7 @@ npm run dev                         # http://localhost:3000 — 화면 위쪽에
 ```bash
 # 테스트 (실제 PostgreSQL 에 임시 DB 를 만들었다 지웁니다)
 export TEST_DATABASE_URL=postgres://slatebook:slatebook@localhost:5432/postgres
-npm test                            # 통합·단위 테스트 281개, 약 5초
+npm test                            # 통합·단위 테스트 285개, 약 5초
 npm run typecheck
 
 # e2e (실제 브라우저 + 실제 서버 + 전용 DB)

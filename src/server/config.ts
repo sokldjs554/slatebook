@@ -7,7 +7,7 @@ const flag = z
 
 const envSchema = z.object({
   NODE_ENV: z.string().optional(),
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  DATABASE_URL: z.string({ error: 'DATABASE_URL is required' }).min(1, 'DATABASE_URL is required'),
   PAYMENT_GATEWAY: z.enum(['fake', 'toss']).default('fake'),
   TOSS_SECRET_KEY: z.string().optional(),
   WEBHOOK_TOKEN: z.string().optional(),
@@ -41,7 +41,13 @@ export interface AppConfig {
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
-  const e = envSchema.parse(env);
+  const parsed = envSchema.safeParse(env);
+  if (!parsed.success) {
+    // ZodError 의 JSON 덩어리 대신, 로그 한 줄만 봐도 무엇을 고쳐야 하는지 알 수 있게 한다
+    const lines = parsed.error.issues.map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`);
+    throw new Error(`환경변수가 올바르지 않습니다:\n${lines.join('\n')}`);
+  }
+  const e = parsed.data;
   const production = e.NODE_ENV === 'production';
 
   if (production && e.PAYMENT_GATEWAY === 'fake' && !e.ALLOW_FAKE_GATEWAY) {
