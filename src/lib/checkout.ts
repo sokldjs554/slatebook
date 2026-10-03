@@ -42,6 +42,30 @@ export async function startCheckout(args: { payment: PaymentInfo; bookingId: str
     return;
   }
 
+  if (process.env.NEXT_PUBLIC_PAYMENT_MODE === 'portone') {
+    const storeId = process.env.NEXT_PUBLIC_PORTONE_STORE_ID;
+    const channelKey = process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
+    if (!storeId || !channelKey) throw new Error('NEXT_PUBLIC_PORTONE_STORE_ID / NEXT_PUBLIC_PORTONE_CHANNEL_KEY 가 설정되지 않았습니다.');
+    const { requestPayment } = await import('@portone/browser-sdk/v2');
+    const back = new URLSearchParams({ amount: String(payment.amount), bookingId });
+    // forceRedirect: PC(프로미스)와 모바일(리디렉션)의 결과를 /pay/portone 한 곳으로 모은다.
+    // 포트원 기본 설정에서는 이 결제창 안에서 결제가 끝까지 완료된다 — 서버는 그 뒤에 조회로 검증한다 (payments/portone.ts).
+    const res = await requestPayment({
+      storeId,
+      channelKey,
+      paymentId: payment.orderId,
+      orderName: payment.orderName,
+      totalAmount: payment.amount,
+      currency: 'KRW',
+      payMethod: 'CARD',
+      redirectUrl: `${origin}/pay/portone?${back.toString()}`,
+      forceRedirect: true,
+    });
+    // 결제를 시작하기 전에 난 오류는 리디렉션되지 않고 여기로 돌아온다
+    if (res?.code !== undefined) throw new Error(res.message ?? '결제를 시작하지 못했어요.');
+    return;
+  }
+
   const q = new URLSearchParams({
     orderId: payment.orderId,
     amount: String(payment.amount),

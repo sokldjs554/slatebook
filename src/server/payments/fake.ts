@@ -42,6 +42,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export class FakeGateway implements PaymentGateway {
   readonly name = 'fake';
+  readonly capturesBeforeServerConfirm = false; // 토스처럼 서버 승인 전에는 돈이 움직이지 않는 PG 를 흉내 낸다
   readonly records = new Map<string, FakeRecord>();
   readonly confirmCalls: FakeCall[] = [];
   readonly cancelCalls: Array<{ paymentKey: string; idempotencyKey: string; reason: string }> = [];

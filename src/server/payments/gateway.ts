@@ -32,6 +32,8 @@ export interface ConfirmRequest {
 
 export interface CancelRequest {
   paymentKey: string;
+  /** PG 마다 취소에 쓰는 식별자가 다르다 — 토스는 paymentKey, 포트원은 paymentId(= 우리 주문번호) */
+  orderId: string;
   reason: string;
   /** 생략하면 전액 취소 */
   cancelAmount?: number;
@@ -45,6 +47,11 @@ export interface CallOptions {
 
 export interface PaymentGateway {
   readonly name: string;
+  /**
+   * 서버가 승인을 요청하기 전에 결제창 안에서 돈이 움직이는 PG 인가 (포트원 기본 설정: true, 토스: false).
+   * true 라면 "결제 대기 중 홀드 만료"가 "돈이 안 움직였다"를 뜻하지 않으므로, 슬롯을 풀기 전에 PG 에 확인해야 한다.
+   */
+  readonly capturesBeforeServerConfirm: boolean;
   confirm(req: ConfirmRequest, opts?: CallOptions): Promise<GatewayPayment>;
   /** 주문번호로 PG 의 현재 상태를 조회한다. PG 가 모르는 주문이면 null. */
   getByOrderId(orderId: string, opts?: CallOptions): Promise<GatewayPayment | null>;

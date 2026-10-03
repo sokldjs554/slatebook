@@ -42,7 +42,7 @@ const MUTANTS: Mutant[] = [
     id: 'no-lazy-expiry',
     why: '예약 시 만료된 홀드를 풀어주지 않는다 → 워커가 늦으면 빈 자리가 영원히 막힌다',
     file: 'src/server/bookings/create.ts',
-    from: 'await expireDueHolds(tx, { resourceIds, blocked });',
+    from: 'await expireDueHolds(tx, { resourceIds, blocked }, { verifyBeforeRelease: ctx.gateway.capturesBeforeServerConfirm });',
     to: '',
   },
   {
@@ -200,6 +200,34 @@ const MUTANTS: Mutant[] = [
     file: 'src/server/reviews/list.ts',
     from: '(r.created_at, r.id) < ($2::timestamptz, $3::uuid)',
     to: '(r.created_at < $2::timestamptz OR ($3::uuid IS NULL))',
+  },
+  {
+    id: 'portone-release-without-verify',
+    why: '포트원에서도 홀드가 지나면 확인 없이 슬롯을 푼다 → 결제를 마치고 창을 닫은 고객의 돈은 빠졌는데 예약은 사라진다',
+    file: 'src/server/payments/portone.ts',
+    from: 'readonly capturesBeforeServerConfirm = true;',
+    to: 'readonly capturesBeforeServerConfirm = false;',
+  },
+  {
+    id: 'reconcile-ignores-ready',
+    why: 'PG 가 "아직 결제 전"이라고 해도 대사가 결론을 내지 않는다 → 위조된 성공 신고 하나로 슬롯을 영원히 붙잡을 수 있다',
+    file: 'src/server/payments/reconcile.ts',
+    from: "if (view.status === 'READY') {",
+    to: "if (view.status === 'READY' && false) {",
+  },
+  {
+    id: 'portone-cancel-by-payment-key',
+    why: '포트원 취소를 결제키(transactionId)로 요청한다 → 토스식 식별자를 그대로 써서 환불이 엉뚱한 경로로 간다',
+    file: 'src/server/payments/portone.ts',
+    from: '`/payments/${encodeURIComponent(req.orderId)}/cancel`',
+    to: '`/payments/${encodeURIComponent(req.paymentKey)}/cancel`',
+  },
+  {
+    id: 'portone-ready-is-paid',
+    why: '포트원의 READY(결제창만 열림)를 결제 완료로 해석한다 → 돈을 받지 않고 예약을 확정한다',
+    file: 'src/server/payments/portone.ts',
+    from: "    case 'READY':\n      return 'READY';",
+    to: "    case 'READY':\n      return 'DONE';",
   },
   {
     id: 'no-buffer-in-slot',

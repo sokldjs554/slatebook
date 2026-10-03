@@ -1,28 +1,7 @@
-import { GatewayDeclinedError, GatewayIndeterminateError, isGatewayDeclined, isGatewayIndeterminate } from './gateway';
+import { observe, describeOutcome, type ContractResult, type Outcome } from './contract';
 import { TossGateway } from './toss';
 
-export interface ContractResult {
-  name: string;
-  ok: boolean;
-  /** 실제로 관측한 것 (오류 코드·분류) — 어댑터 가정과 다르면 이 값을 보고 매핑을 고친다 */
-  observed: string;
-  expected: string;
-}
-
-type Outcome = { kind: 'value'; value: unknown } | { kind: 'declined'; code: string } | { kind: 'indeterminate'; code?: string } | { kind: 'other'; message: string };
-
-async function observe(fn: () => Promise<unknown>): Promise<Outcome> {
-  try {
-    return { kind: 'value', value: await fn() };
-  } catch (err) {
-    if (isGatewayDeclined(err)) return { kind: 'declined', code: (err as GatewayDeclinedError).code };
-    if (isGatewayIndeterminate(err)) return { kind: 'indeterminate', code: (err as GatewayIndeterminateError).code };
-    return { kind: 'other', message: (err as Error).message };
-  }
-}
-
-const describeOutcome = (o: Outcome): string =>
-  o.kind === 'value' ? `값 ${o.value === null ? 'null' : typeof o.value}` : o.kind === 'declined' ? `확정된 실패(${o.code})` : o.kind === 'indeterminate' ? `알 수 없음${o.code ? `(${o.code})` : ''}` : `예상 밖 오류(${o.message})`;
+export type { ContractResult } from './contract';
 
 /**
  * 토스 API 계약 확인 — 돈이 움직이지 않는 호출만 사용한다.
@@ -51,7 +30,7 @@ export async function runTossContractChecks(
   check('승인: 같은 Idempotency-Key 재시도', '같은 분류·같은 코드', confirmAgain, confirm.kind === 'declined' && confirmAgain.kind === 'declined' && confirm.code === confirmAgain.code);
 
   // 4. 존재하지 않는 결제키 취소 → 확정된 실패
-  const cancel = await observe(() => gateway.cancel({ paymentKey: `pk_contract_${rnd}`, reason: '계약 확인', idempotencyKey: `contract-cancel:${rnd}` }, { timeoutMs: t }));
+  const cancel = await observe(() => gateway.cancel({ paymentKey: `pk_contract_${rnd}`, orderId: `sb_contract_${rnd}`, reason: '계약 확인', idempotencyKey: `contract-cancel:${rnd}` }, { timeoutMs: t }));
   check('취소: 존재하지 않는 paymentKey', '확정된 실패 (4xx)', cancel, cancel.kind === 'declined');
 
   // 5. 틀린 비밀키 → 인증 실패는 "확정된 실패"로 분류된다 (결제 시도 자체가 처리되지 않았다)

@@ -75,11 +75,11 @@ describe('요청 형식', () => {
 
   it('cancel: POST /{paymentKey}/cancel 에 cancelReason(+전액이면 cancelAmount 생략)과 Idempotency-Key', async () => {
     handler = (_q, res) => json(res, 200, tossPayment({ status: 'CANCELED' }));
-    const p = await gw().cancel({ paymentKey: 'pk/weird key', reason: '자동 환불', idempotencyKey: 'capture-refund:1' });
+    const p = await gw().cancel({ paymentKey: 'pk/weird key', orderId: 'sb_order_1', reason: '자동 환불', idempotencyKey: 'capture-refund:1' });
     expect(seen[0]).toMatchObject({ method: 'POST', url: '/v1/payments/pk%2Fweird%20key/cancel', body: { cancelReason: '자동 환불' } });
     expect(seen[0]!.headers['idempotency-key']).toBe('capture-refund:1');
     expect(p.status).toBe('CANCELED');
-    await gw().cancel({ paymentKey: 'pk', reason: 'r', cancelAmount: 500, idempotencyKey: 'k' });
+    await gw().cancel({ paymentKey: 'pk', orderId: 'sb_order_1', reason: 'r', cancelAmount: 500, idempotencyKey: 'k' });
     expect(seen[1]!.body).toEqual({ cancelReason: 'r', cancelAmount: 500 });
   });
 

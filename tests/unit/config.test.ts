@@ -31,4 +31,13 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...base, PAYMENT_GATEWAY: 'toss', TOSS_SECRET_KEY: 'test_sk_x', WEBHOOK_TOKEN: 'short' })).toThrow(/WEBHOOK_TOKEN/);
     expect(loadConfig({ ...base, PAYMENT_GATEWAY: 'toss', TOSS_SECRET_KEY: 'test_sk_x', WEBHOOK_TOKEN: 'x'.repeat(24) }).gateway).toBe('toss');
   });
+
+  it('포트원 모드에는 API 시크릿, 웹훅 서명 시크릿, 충분히 긴 웹훅 토큰이 모두 필요하다 (서명 검증을 끈 채로는 기동하지 않는다)', () => {
+    const token = 'x'.repeat(24);
+    expect(() => loadConfig({ ...base, PAYMENT_GATEWAY: 'portone', PORTONE_WEBHOOK_SECRET: 'w', WEBHOOK_TOKEN: token })).toThrow(/PORTONE_API_SECRET/);
+    expect(() => loadConfig({ ...base, PAYMENT_GATEWAY: 'portone', PORTONE_API_SECRET: 's', WEBHOOK_TOKEN: token })).toThrow(/PORTONE_WEBHOOK_SECRET/);
+    expect(() => loadConfig({ ...base, PAYMENT_GATEWAY: 'portone', PORTONE_API_SECRET: 's', PORTONE_WEBHOOK_SECRET: 'w' })).toThrow(/WEBHOOK_TOKEN/);
+    const c = loadConfig({ ...base, PAYMENT_GATEWAY: 'portone', PORTONE_API_SECRET: 's', PORTONE_WEBHOOK_SECRET: 'w', WEBHOOK_TOKEN: token, PORTONE_STORE_ID: '' });
+    expect(c.portone).toEqual({ apiSecret: 's', storeId: undefined, webhookSecret: 'w' });
+  });
 });

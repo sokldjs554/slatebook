@@ -4,6 +4,7 @@ import { createPool } from './db';
 import { createLogger, type Logger } from './logger';
 import { FakeGateway } from './payments/fake';
 import type { PaymentGateway } from './payments/gateway';
+import { PortOneGateway } from './payments/portone';
 import { TossGateway } from './payments/toss';
 
 /** 서비스 함수들이 받는 의존성 묶음 — 테스트는 가짜 PG·고정 시계를 주입한다 */
@@ -24,7 +25,11 @@ export function getContext(): AppContext {
   if (g[KEY]) return g[KEY];
   const config = loadConfig();
   const gateway: PaymentGateway =
-    config.gateway === 'toss' ? new TossGateway({ secretKey: config.tossSecretKey! }) : new FakeGateway();
+    config.gateway === 'toss'
+      ? new TossGateway({ secretKey: config.tossSecretKey! })
+      : config.gateway === 'portone'
+        ? new PortOneGateway({ apiSecret: config.portone!.apiSecret, storeId: config.portone!.storeId })
+        : new FakeGateway();
   g[KEY] = {
     pool: createPool(config.databaseUrl),
     gateway,

@@ -90,7 +90,9 @@ export async function confirmPayment(ctx: AppContext, userId: string, rawInput: 
         if (booking.status === 'EXPIRED') return { kind: 'expired', bookingId: booking.id };
         throw new BookingNotPayableError();
       }
-      if (!booking.hold_active) {
+      // 결제창에서 이미 결제가 끝났을 수 있는 PG(포트원 등)는 홀드가 지났어도 확인을 진행한다.
+      // 예약이 아직 PENDING_PAYMENT 이므로 슬롯은 이 예약이 쥐고 있다 — 다른 사람에게 넘어가지 않았다.
+      if (!booking.hold_active && !ctx.gateway.capturesBeforeServerConfirm) {
         // 홀드가 지났다. 워커를 기다리지 않고 지금 풀어준다 (PG 승인 전이므로 돈은 움직이지 않았다)
         await expireBookingsLocked(tx, [booking.id]);
         return { kind: 'expired', bookingId: booking.id };

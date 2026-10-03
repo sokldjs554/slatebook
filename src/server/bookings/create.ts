@@ -158,7 +158,7 @@ async function createInTx(tx: Tx, ctx: AppContext, a: CreateArgs): Promise<Creat
   ).rows[0]!.r;
 
   // 홀드가 지났는데 아직 정리 안 된 예약이 길을 막고 있으면 지금 풀어준다 (워커 지연에 의존하지 않는다)
-  await expireDueHolds(tx, { resourceIds, blocked });
+  await expireDueHolds(tx, { resourceIds, blocked }, { verifyBeforeRelease: ctx.gateway.capturesBeforeServerConfirm });
 
   // ③ 겹치지 않는 자원 하나를 고른다 (잠금을 쥐고 있으므로 이 판단은 경쟁 상태가 없다)
   const free = await tx.query<{ id: string }>(

@@ -85,30 +85,43 @@ export async function reconcilePayment(ctx: AppContext, paymentId: string): Prom
     return { kind: 'failed', bookingId: p.booking_id, reason: 'NOT_FOUND_AT_PG' };
   }
 
-  if (view.status === 'IN_PROGRESS' && p.payment_key) {
-    // PG 는 사용자 인증까지만 끝났고 승인은 하지 않았다.
+  if (view.status === 'READY') {
+    // 브라우저는 결제가 끝났다고 했지만 PG 는 아직 결제 전이라고 한다 (결제창을 닫았거나, 성공 신고가 위조됐거나).
+    // 그대로 두면 "결제 확정 중" 예약이 슬롯을 영원히 붙잡으므로, 조회 지연 유예가 지나면 실패로 정리한다.
+    // 그 뒤에 결제가 완료되더라도 웹훅·대사가 LATE_CAPTURE 로 자동 환불한다 (apply.ts).
+    if (p.age_ms < config.notFoundGraceMs) return pending;
+    await failPayment(ctx, p.id, 'NOT_PAID_AT_PG');
+    return { kind: 'failed', bookingId: p.booking_id, reason: 'NOT_PAID_AT_PG' };
+  }
+
+  if (view.status === 'IN_PROGRESS') {
+    // PG 는 사용자 인증까지만 끝났고 승인은 하지 않았다 (포트원이라면 결제 완료 대기).
     if (p.age_ms >= config.confirmRetryWindowMs) {
-      // PG 가 인증 세션을 만료시킬 시점이 가까우니 포기한다 (승인되지 않았으므로 돈은 움직이지 않았다)
+      // PG 가 인증 세션을 만료시킬 시점이 가까우니 포기한다 (승인되지 않았으므로 돈은 움직이지 않았다.
+      // 그 뒤에 승인되더라도 웹훅·대사가 LATE_CAPTURE 로 자동 환불한다)
       await failPayment(ctx, p.id, 'PG_SESSION_NOT_CAPTURED');
       return { kind: 'failed', bookingId: p.booking_id, reason: 'PG_SESSION_NOT_CAPTURED' };
     }
-    try {
-      // 같은 멱등키로 승인을 다시 시도한다. 이미 승인된 건이라면 PG 가 같은 결과를 돌려준다.
-      const confirmed = await gateway.confirm(
-        { paymentKey: p.payment_key, orderId: p.order_id, amount: num(p.amount), idempotencyKey: `confirm:${p.id}` },
-        { timeoutMs: config.confirmTimeoutMs },
-      );
-      return applyGatewayResult(ctx, p.id, confirmed, 'reconcile');
-    } catch (err) {
-      if (isGatewayDeclined(err)) {
-        await failPayment(ctx, p.id, `DECLINED:${err.code}`);
-        return { kind: 'failed', bookingId: p.booking_id, reason: `DECLINED:${err.code}` };
+    // 결제키를 모르면(결제창 결과를 받기 전에 만료 확인으로 넘어온 경우) 다시 승인할 수 없으니 기다린다
+    if (p.payment_key) {
+      try {
+        // 같은 멱등키로 승인을 다시 시도한다. 이미 승인된 건이라면 PG 가 같은 결과를 돌려준다.
+        const confirmed = await gateway.confirm(
+          { paymentKey: p.payment_key, orderId: p.order_id, amount: num(p.amount), idempotencyKey: `confirm:${p.id}` },
+          { timeoutMs: config.confirmTimeoutMs },
+        );
+        return applyGatewayResult(ctx, p.id, confirmed, 'reconcile');
+      } catch (err) {
+        if (isGatewayDeclined(err)) {
+          await failPayment(ctx, p.id, `DECLINED:${err.code}`);
+          return { kind: 'failed', bookingId: p.booking_id, reason: `DECLINED:${err.code}` };
+        }
+        if (isGatewayIndeterminate(err)) {
+          await alertIfStuck();
+          return pending;
+        }
+        throw err;
       }
-      if (isGatewayIndeterminate(err)) {
-        await alertIfStuck();
-        return pending;
-      }
-      throw err;
     }
   }
 

@@ -24,6 +24,7 @@ export async function executeCaptureRefund(ctx: AppContext, paymentId: string): 
     await ctx.gateway.cancel(
       {
         paymentKey: p.payment_key,
+        orderId: p.order_id,
         reason: `자동 환불 (${p.failure_reason ?? 'unusable capture'})`,
         idempotencyKey: `capture-refund:${p.id}`,
       },

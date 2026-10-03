@@ -11,7 +11,11 @@ export interface WebhookInput {
 
 export type WebhookOutcome = 'processed' | 'duplicate' | 'ignored';
 
-const payloadSchema = z.object({ data: z.object({ orderId: z.string().min(1) }).loose() }).loose();
+// 어느 주문을 다시 확인해야 하는지만 꺼낸다 — 토스는 data.orderId, 포트원은 data.paymentId (= 우리 주문번호)
+const payloadSchema = z.union([
+  z.object({ data: z.object({ orderId: z.string().min(1) }).loose() }).loose().transform((p) => p.data.orderId),
+  z.object({ data: z.object({ paymentId: z.string().min(1) }).loose() }).loose().transform((p) => p.data.paymentId),
+]);
 
 /**
  * PG 웹훅 처리.
@@ -53,7 +57,7 @@ export async function handlePgWebhook(ctx: AppContext, input: WebhookInput): Pro
     await markProcessed();
     return 'ignored';
   }
-  const orderId = parsed.data.data.orderId;
+  const orderId = parsed.data;
 
   const payment = await pool.query<{ id: string }>('SELECT id FROM payments WHERE order_id = $1', [orderId]);
   const paymentId = payment.rows[0]?.id;

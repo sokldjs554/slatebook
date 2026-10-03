@@ -69,6 +69,7 @@ export function mapTossStatus(status: string): GatewayStatus {
 
 export class TossGateway implements PaymentGateway {
   readonly name = 'toss';
+  readonly capturesBeforeServerConfirm = false; // 서버의 승인 호출(/confirm) 전에는 돈이 움직이지 않는다
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly authHeader: string;
