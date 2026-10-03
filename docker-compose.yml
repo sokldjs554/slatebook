@@ -14,5 +14,13 @@ services:
       retries: 20
     volumes:
       - pgdata:/var/lib/postgresql/data
+  # 전체 데모(가짜 PG + 데모 인증)를 컨테이너 하나로: docker compose --profile demo up --build  →  http://localhost:3000
+  demo:
+    profiles: ["demo"]
+    build:
+      context: .
+      dockerfile: deploy/render-demo/Dockerfile
+    ports:
+      - "3000:3000"
 volumes:
   pgdata:

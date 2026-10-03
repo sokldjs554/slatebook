@@ -17,7 +17,9 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "worker": "tsx scripts/worker.ts",
-    "mutation-check": "tsx scripts/mutation-check.ts"
+    "mutation-check": "tsx scripts/mutation-check.ts",
+    "toss:check": "tsx scripts/toss-contract-check.ts",
+    "demo:record": "tsx scripts/record-demo.ts"
   },
   "dependencies": {
     "@tosspayments/tosspayments-sdk": "^2.9.0",

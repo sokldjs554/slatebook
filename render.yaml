@@ -1,0 +1,16 @@
+# Render 블루프린트 — 공개 데모 배포 (가짜 PG · 데모 인증).
+#
+# 웹 서비스 하나에 PostgreSQL 까지 담는다 (deploy/render-demo/). 관리형 DB 가 필요 없다.
+# 알아둘 점:
+#  - 인스턴스는 반드시 하나여야 한다. 가짜 PG 의 상태가 프로세스 메모리에 있다.
+#  - 재배포·재시작 때마다 데이터가 초기화되고 데모 시드가 다시 채워진다.
+#  - 무료 플랜은 15분 동안 접속이 없으면 잠들고, 다시 깨어나 DB 를 준비하는 데 1~2분 걸린다.
+services:
+  - type: web
+    name: slatebook
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/render-demo/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
