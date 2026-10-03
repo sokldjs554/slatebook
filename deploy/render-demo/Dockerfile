@@ -1,13 +1,12 @@
 # Slatebook 공개 데모 이미지 — PostgreSQL 16 + Node 22 + Next.js 를 한 컨테이너에 담는다 (deploy/render-demo/start.sh 참고).
 # 가짜 PG · 데모 인증으로 동작하는 시연용이다. 실제 결제·실제 로그인이 아니다.
-FROM postgres:16-bookworm
 
-ARG NODE_MAJOR=22
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
- && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
- && apt-get install -y --no-install-recommends nodejs \
- && rm -rf /var/lib/apt/lists/*
+# Node 는 apt 나 curl|bash 로 설치하지 않고 공식 이미지에서 파일만 가져온다 (빌드가 외부 저장소 상태에 덜 기댄다).
+FROM node:22-bookworm-slim AS node
+
+FROM postgres:16-bookworm
+COPY --from=node /usr/local/bin/ /usr/local/bin/
+COPY --from=node /usr/local/lib/node_modules/ /usr/local/lib/node_modules/
 
 WORKDIR /app
 COPY package.json package-lock.json ./
