@@ -96,3 +96,19 @@ export class PaymentVerificationFailedError extends AppError {
     );
   }
 }
+
+export class ReviewNotAllowedError extends AppError {
+  constructor() {
+    super('BOOKING_NOT_REVIEWABLE', 409, '이용이 완료된 예약에만 후기를 남길 수 있어요.');
+  }
+}
+export class ReviewExistsError extends AppError {
+  constructor() {
+    super('REVIEW_EXISTS', 409, '이미 후기를 남긴 예약이에요.');
+  }
+}
+export class ReviewWindowClosedError extends AppError {
+  constructor() {
+    super('REVIEW_WINDOW_CLOSED', 410, '후기 작성 기간이 지났어요.');
+  }
+}

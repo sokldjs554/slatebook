@@ -111,6 +111,25 @@ describe('불변식 검사기는 위반을 실제로 잡아낸다', () => {
   });
 });
 
+describe('후기 불변식도 위반을 잡아낸다', () => {
+  it('평점 집계가 공개된 후기와 어긋날 때 / 이용 완료되지 않은 예약에 후기가 있을 때', async () => {
+    await withDb(async (pool) => {
+      const t = makeCtx(pool);
+      const listing = await makeListing(pool);
+      const user = await makeUser(pool);
+      const b = await book(t.ctx, user, listing, futureWindow(15, 1, 1)); // 결제 대기 예약
+      await corrupt(pool, `INSERT INTO reviews(booking_id, author_id, listing_id, rating) VALUES ($1, $2, $3, 5)`, [b.booking.id, user, listing.id]);
+      let v = labels(await findInvariantViolations(pool));
+      expect(v).toContain('REVIEW_ON_UNFINISHED_BOOKING');
+      expect(v).toContain('RATING_AGGREGATE_DRIFT'); // 후기는 있는데 집계는 0
+
+      await pool.query(`UPDATE listings SET rating_count = 1, rating_sum = 5 WHERE id = $1`, [listing.id]);
+      v = labels(await findInvariantViolations(pool));
+      expect(v).not.toContain('RATING_AGGREGATE_DRIFT'); // 집계를 맞추면 사라진다
+    });
+  });
+});
+
 describe('방어 계층을 하나씩 걷어내 보면 — 각 계층이 왜 필요한지', () => {
   const N = 20;
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

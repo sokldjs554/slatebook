@@ -34,7 +34,11 @@ export async function POST(req: Request) {
     const amount = num(payment.amount);
     const paymentKey = fake.authenticate({ orderId: body.data.orderId, amount });
     if (body.data.outcome === 'decline_on_confirm') fake.script('decline', body.data.orderId);
-    if (body.data.outcome === 'timeout_after_capture') fake.script(['timeout_after_capture', 'ok'], body.data.orderId);
+    if (body.data.outcome === 'timeout_after_capture') {
+      fake.script(['timeout_after_capture', 'ok'], body.data.orderId);
+      // PG 의 상태 조회도 처음 두 번은 실패하게 해서, "확인 중" 화면과 대사의 재시도가 눈에 보이게 한다 (실제 PG 장애를 흉내)
+      fake.failNextLookups(2);
+    }
     return json({ paymentKey, amount });
   });
 }

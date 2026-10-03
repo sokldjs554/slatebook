@@ -1,6 +1,7 @@
 import type { Queryable } from '../db';
-import type { BookingResponse, BookingStatus, BookingView } from '../../shared/schemas';
+import type { BookingResponse, BookingStatus, BookingView, ReviewView } from '../../shared/schemas';
 import { num } from '../db';
+import { REVIEW_WINDOW_DAYS, maskName } from '../../shared/rating';
 
 export interface BookingRow {
   id: string;
@@ -15,6 +16,8 @@ export interface BookingRow {
   hold_expires_at: Date | null;
   /** DB 시계 기준으로 지금 홀드가 살아 있는가 */
   hold_active: boolean;
+  /** DB 시계 기준으로 이용 완료 후 후기 작성 기간 안인가 */
+  review_open: boolean;
   idempotency_key: string;
   request_hash: string;
   price_snapshot: PriceSnapshot;
@@ -36,6 +39,7 @@ export const BOOKING_SELECT = `
          lower(b.period) AS start_at, upper(b.period) AS end_at, b.total_amount,
          b.hold_expires_at,
          COALESCE(b.hold_expires_at > clock_timestamp(), false) AS hold_active,
+         COALESCE(b.completed_at + make_interval(days => ${REVIEW_WINDOW_DAYS}) > clock_timestamp(), false) AS review_open,
          b.idempotency_key, b.request_hash, b.price_snapshot
     FROM bookings b JOIN listings l ON l.id = b.listing_id`;
 
@@ -67,10 +71,33 @@ export function toBookingView(row: BookingRow): BookingView {
   };
 }
 
-/** 지금 결제를 진행할 수 있을 때만 결제 정보를 함께 돌려준다 */
+export interface ReviewRow {
+  id: string;
+  rating: number;
+  body: string | null;
+  created_at: Date;
+  author_name: string;
+}
+
+export function toReviewView(r: ReviewRow): ReviewView {
+  return { id: r.id, rating: r.rating, body: r.body, createdAt: r.created_at.toISOString(), authorName: maskName(r.author_name) };
+}
+
+/** 지금 결제를 진행할 수 있을 때만 결제 정보를, 이용이 끝난 예약이면 후기 정보를 함께 돌려준다 */
 export async function toBookingResponse(q: Queryable, row: BookingRow): Promise<BookingResponse> {
   const booking = toBookingView(row);
-  if (row.status !== 'PENDING_PAYMENT' || !row.hold_active) return { booking, payment: null };
+  let review: ReviewView | null = null;
+  let canReview = false;
+  if (row.status === 'COMPLETED') {
+    const { rows } = await q.query<ReviewRow>(
+      `SELECT r.id, r.rating, r.body, r.created_at, u.name AS author_name
+         FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.booking_id = $1`,
+      [row.id],
+    );
+    review = rows[0] ? toReviewView(rows[0]) : null;
+    canReview = review === null && row.review_open;
+  }
+  if (row.status !== 'PENDING_PAYMENT' || !row.hold_active) return { booking, payment: null, review, canReview };
   const { rows } = await q.query<{ order_id: string; amount: string }>(
     `SELECT order_id, amount FROM payments WHERE booking_id = $1 AND status = 'READY'`,
     [row.id],
@@ -79,5 +106,7 @@ export async function toBookingResponse(q: Queryable, row: BookingRow): Promise<
   return {
     booking,
     payment: p ? { orderId: p.order_id, amount: num(p.amount), orderName: row.listing_title } : null,
+    review,
+    canReview,
   };
 }

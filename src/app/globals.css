@@ -76,3 +76,5 @@ button.block, .btn.block { display: block; width: 100%; }
 .pg { max-width: 420px; margin: 32px auto; }
 .pg .card { border-color: var(--brand); }
 .pg .banner { font-size: 12px; text-align: center; color: var(--muted); margin-bottom: 12px; }
+/* 별점 선택: 라디오 입력은 보이지 않게 숨겨 두었으므로, 키보드로 이동했을 때 어느 별에 있는지 표시한다 */
+label:has(input[type='radio']:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }

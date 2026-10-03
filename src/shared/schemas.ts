@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_RATING, MIN_RATING, REVIEW_MAX_BODY } from './rating';
 
 export const idempotencyKeySchema = z
   .string()
@@ -19,6 +20,22 @@ export const confirmPaymentSchema = z.strictObject({
   amount: z.number().int().positive().safe(),
 });
 export type ConfirmPaymentInput = z.infer<typeof confirmPaymentSchema>;
+
+export const createReviewSchema = z.strictObject({
+  rating: z.number().int().min(MIN_RATING).max(MAX_RATING),
+  body: z
+    .string()
+    .max(REVIEW_MAX_BODY)
+    // NUL 문자는 PostgreSQL text 에 저장할 수 없다 (넘기면 500 이 나므로 입력 단계에서 거른다)
+    .refine((v) => !v.includes('\u0000'), 'invalid character')
+    .optional(),
+});
+export type CreateReviewInput = z.infer<typeof createReviewSchema>;
+
+export const reviewListQuerySchema = z.strictObject({
+  cursor: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});
 
 export const availabilityQuerySchema = z.strictObject({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -51,10 +68,29 @@ export interface PaymentInfo {
   orderName: string;
 }
 
+export interface ReviewView {
+  id: string;
+  rating: number;
+  body: string | null;
+  createdAt: string;
+  /** 마스킹된 작성자 이름 (앨**) */
+  authorName: string;
+}
+
 export interface BookingResponse {
   booking: BookingView;
   /** 지금 결제를 진행할 수 있을 때만 존재 (홀드가 살아 있고 READY 결제가 있을 때) */
   payment: PaymentInfo | null;
+  /** 이 예약에 남긴 내 후기 */
+  review: ReviewView | null;
+  /** 지금 후기를 쓸 수 있는가: 이용 완료 + 작성 기간 안 + 아직 안 썼음 */
+  canReview: boolean;
+}
+
+export interface ReviewListResponse {
+  summary: { count: number; average: number | null };
+  reviews: ReviewView[];
+  nextCursor: string | null;
 }
 
 export type ConfirmResponse =

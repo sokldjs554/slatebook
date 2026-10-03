@@ -17,6 +17,7 @@ const q = async <T = any>(sql: string, params: unknown[] = []) => (await pool.qu
 test.beforeEach(async () => {
   await q(`TRUNCATE bookings, booking_slots, payments, refunds, pg_webhook_inbox, ledger_entries, ledger_transactions,
            ledger_accounts, outbox, reviews, settlement_items, settlements, payouts RESTART IDENTITY CASCADE`);
+  await q(`UPDATE listings SET rating_count = 0, rating_sum = 0`); // 후기를 비웠으니 집계도 0 으로
 });
 
 const kstDate = (daysAhead: number) => new Date(Date.now() + 9 * 3_600_000 + daysAhead * 86_400_000).toISOString().slice(0, 10);
@@ -203,4 +204,67 @@ test('이미 예약된 시간대는 화면에서 선택할 수 없고, 정리 �
   await pageB.locator('#minutes').selectOption('120');
   await expect(notice(pageB).filter({ hasText: '이미 예약된 칸' })).toBeVisible();
   await ctxB.close();
+});
+
+test('이용 완료 후 후기를 남기면 상품 페이지와 홈의 평점에 반영되고, 후기 본문의 HTML 은 실행되지 않는다', async ({ page, context }) => {
+  await login(context, '앨리스');
+  await openListing(page, 'A홀', 49);
+  await submit(page).click();
+  await page.getByRole('button', { name: /정상 승인/ }).click();
+  await expect(page.getByText('예약이 확정되었어요')).toBeVisible();
+
+  // 확정만으로는 후기를 쓸 수 없다. 데모 전용 버튼으로 이용을 끝낸다.
+  await expect(page.getByText('이용 후기를 남겨 주세요')).toHaveCount(0);
+  await page.getByRole('button', { name: /이용 시간이 지난 것으로 만들기/ }).click();
+  await expect(page.getByText('이용 후기를 남겨 주세요')).toBeVisible();
+
+  // 별점 없이 제출하면 안내만 뜨고 아무것도 저장되지 않는다
+  await page.getByRole('button', { name: '후기 등록' }).click();
+  await expect(notice(page)).toContainText('별점을 선택해 주세요');
+  expect(await q(`SELECT 1 FROM reviews`)).toHaveLength(0);
+
+  await page.locator('label:has(input[value="4"])').click();
+  await page.getByLabel('한줄 후기 (선택)').fill('조명이 좋았어요 <img src=x onerror="window.__xss=1">');
+  await page.getByRole('button', { name: '후기 등록' }).click();
+  await expect(page.getByText('내가 남긴 후기')).toBeVisible();
+  await expect(page.getByText('이용 후기를 남겨 주세요')).toHaveCount(0); // 폼은 사라진다
+
+  const [agg] = await q(`SELECT rating_count, rating_sum FROM listings WHERE title LIKE 'A홀%'`);
+  expect(agg).toEqual({ rating_count: 1, rating_sum: 4 });
+  expect((await q(`SELECT status FROM bookings`))[0].status).toBe('COMPLETED');
+
+  await page.goto(`/listings/${await listingId('A홀')}`);
+  const reviews = page.getByRole('region', { name: '이용 후기' });
+  await expect(reviews.getByText('앨**')).toBeVisible(); // 이름은 마스킹된다
+  await expect(reviews.getByText('<img src=x onerror="window.__xss=1">', { exact: false })).toBeVisible(); // 글자 그대로 보인다
+  expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined(); // 실행되지 않았다
+  await expect(reviews.getByText('4.0')).toBeVisible();
+
+  await page.goto('/');
+  await expect(page.getByText('4.0 (1)')).toBeVisible();
+});
+
+test('후기는 한 예약에 한 번만: 두 번째 탭에서 제출해도 중복 등록되지 않고 내 후기가 보인다', async ({ page, context }) => {
+  await login(context, '앨리스');
+  await openListing(page, 'A홀', 50);
+  await submit(page).click();
+  await page.getByRole('button', { name: /정상 승인/ }).click();
+  await expect(page.getByText('예약이 확정되었어요')).toBeVisible();
+  await page.getByRole('button', { name: /이용 시간이 지난 것으로 만들기/ }).click();
+  await expect(page.getByText('이용 후기를 남겨 주세요')).toBeVisible();
+
+  // 같은 예약을 다른 탭에서 열어 먼저 후기를 남긴다
+  const other = await context.newPage();
+  await other.goto(page.url());
+  await other.locator('label:has(input[value="5"])').click();
+  await other.getByRole('button', { name: '후기 등록' }).click();
+  await expect(other.getByText('내가 남긴 후기')).toBeVisible();
+
+  // 원래 탭의 폼은 낡았지만 제출해도 오류 없이 현재 상태(내 후기)로 정리된다
+  await page.locator('label:has(input[value="1"])').click();
+  await page.getByRole('button', { name: '후기 등록' }).click();
+  await expect(page.getByText('내가 남긴 후기')).toBeVisible();
+  const rows = await q(`SELECT rating FROM reviews`);
+  expect(rows).toEqual([{ rating: 5 }]); // 첫 후기가 유지되고, 두 번째 점수는 반영되지 않았다
+  expect((await q(`SELECT rating_count, rating_sum FROM listings WHERE title LIKE 'A홀%'`))[0]).toEqual({ rating_count: 1, rating_sum: 5 });
 });

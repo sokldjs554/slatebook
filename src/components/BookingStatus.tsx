@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { startCheckout } from '@/lib/checkout';
 import { formatRange, won } from '@/lib/format';
+import { ReviewForm } from './ReviewForm';
+import { Stars } from './Stars';
 import type { BookingResponse } from '@/shared/schemas';
 
 const POLL_MS = 2_000;
@@ -102,6 +104,16 @@ export function BookingStatus({ bookingId }: { bookingId: string }) {
     }
   }
 
+  async function fastForward() {
+    if (acting) return;
+    setActing(true);
+    setActionError(null);
+    const r = await api<BookingResponse>(`/api/demo/bookings/${bookingId}/complete`, { method: 'POST' });
+    setActing(false);
+    if (r.ok) setReloadTick((n) => n + 1);
+    else setActionError(r.message);
+  }
+
   if (load.kind === 'loading') return <p className="muted"><span className="spinner" />예약 정보를 불러오는 중…</p>;
   if (load.kind === 'error') {
     return (
@@ -154,6 +166,25 @@ export function BookingStatus({ bookingId }: { bookingId: string }) {
         <button type="button" className="block" onClick={payNow} disabled={acting}>
           {acting ? (<><span className="spinner" />결제창 여는 중…</>) : res!.payment ? '결제하기' : '다른 결제 수단으로 다시 결제'}
         </button>
+      )}
+      {status === 'CONFIRMED' && process.env.NEXT_PUBLIC_PAYMENT_MODE === 'fake' && (
+        <div className="notice info">
+          <strong>데모 전용</strong> — 실제로는 이용 시간이 지나야 이용 완료가 돼요. 시연을 위해 지금 바로 끝난 것으로 만들 수 있어요.
+          <div style={{ marginTop: 8 }}>
+            <button type="button" className="secondary" disabled={acting} onClick={fastForward}>⏩ 이용 시간이 지난 것으로 만들기</button>
+          </div>
+        </div>
+      )}
+      {res!.canReview && <ReviewForm bookingId={bookingId} onDone={() => setReloadTick((n) => n + 1)} />}
+      {res!.review && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>내가 남긴 후기</h2>
+          <Stars rating={res!.review.rating} />
+          {res!.review.body && <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{res!.review.body}</p>}
+        </div>
+      )}
+      {status === 'COMPLETED' && !res!.canReview && !res!.review && (
+        <p className="notice info">후기 작성 기간(이용 완료 후 30일)이 지났어요.</p>
       )}
       {(status === 'EXPIRED' || status === 'PAYMENT_FAILED' || status === 'CANCELED') && (
         <Link href={`/listings/${b.listingId}`} className="btn block">다시 예약하기</Link>

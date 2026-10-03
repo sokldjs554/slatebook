@@ -80,5 +80,20 @@ export async function findInvariantViolations(pool: Pool): Promise<string[]> {
     `SELECT id FROM payments WHERE refund_pending AND status = 'CANCELED'`,
   );
 
+  await check(
+    'RATING_AGGREGATE_DRIFT — 상품의 평점 집계가 공개된 후기와 다르다',
+    `SELECT l.id, l.rating_count, l.rating_sum,
+            (SELECT count(*) FROM reviews r WHERE r.listing_id = l.id AND r.status = 'PUBLISHED') AS actual_count,
+            (SELECT COALESCE(sum(r.rating), 0) FROM reviews r WHERE r.listing_id = l.id AND r.status = 'PUBLISHED') AS actual_sum
+       FROM listings l
+      WHERE l.rating_count <> (SELECT count(*) FROM reviews r WHERE r.listing_id = l.id AND r.status = 'PUBLISHED')
+         OR l.rating_sum <> (SELECT COALESCE(sum(r.rating), 0) FROM reviews r WHERE r.listing_id = l.id AND r.status = 'PUBLISHED')`,
+  );
+
+  await check(
+    'REVIEW_ON_UNFINISHED_BOOKING — 이용 완료되지 않은 예약에 후기가 있다',
+    `SELECT r.id, b.status FROM reviews r JOIN bookings b ON b.id = r.booking_id WHERE b.status <> 'COMPLETED'`,
+  );
+
   return out;
 }

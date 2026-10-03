@@ -9,6 +9,9 @@ import { POST as webhookPOST } from '../src/app/api/webhooks/pg/route';
 import { DELETE as logoutDELETE, POST as loginPOST } from '../src/app/api/demo/login/route';
 import { GET as usersGET } from '../src/app/api/demo/users/route';
 import { POST as fakeAuthPOST } from '../src/app/api/fake-pg/authorize/route';
+import { POST as reviewPOST } from '../src/app/api/bookings/[id]/review/route';
+import { GET as reviewsGET } from '../src/app/api/listings/[id]/reviews/route';
+import { completedBooking } from './helpers/flow';
 import { createTestDb, type TestDb } from './helpers/db';
 import { makeCtx, type TestCtx } from './helpers/ctx';
 import { futureWindow, idemKey, makeListing, type Listing } from './helpers/fixtures';
@@ -208,8 +211,13 @@ describe('POST /api/payments/confirm', () => {
     const auth = await authorize(alice, b.payment.orderId, 'timeout_after_capture');
     const r = await confirm(alice, { paymentKey: auth.body.paymentKey, orderId: b.payment.orderId, amount: auth.body.amount });
     expect(r).toMatchObject({ status: 202, body: { status: 'PROCESSING', bookingId: b.booking.id } });
-    const view = await call(await bookingGET(req('GET', '/x', { user: alice }), ctxParams(b.booking.id)));
-    expect(view.body.booking.status).toBe('CONFIRMED'); // 이 조회가 PG 를 확인해 확정했다
+    // 데모의 가짜 PG 는 승인 응답을 잃은 뒤 상태 조회도 두 번 실패한다. 조회가 반복되는 동안은 "확인 중"이고, 조회가 성공하면 확정된다.
+    const seen: string[] = [];
+    for (let i = 0; i < 6 && seen.at(-1) !== 'CONFIRMED'; i++) {
+      const view = await call(await bookingGET(req('GET', '/x', { user: alice }), ctxParams(b.booking.id)));
+      seen.push(view.body.booking.status);
+    }
+    expect(seen).toEqual(['PAYMENT_CONFIRMING', 'PAYMENT_CONFIRMING', 'CONFIRMED']);
   });
 
   it('홀드가 지난 뒤에는 410 HOLD_EXPIRED', async () => {
@@ -293,5 +301,60 @@ describe('POST /api/webhooks/pg', () => {
     } finally {
       t.gateway.getByOrderId = original;
     }
+  });
+});
+
+describe('후기 API', () => {
+  it('POST /api/bookings/:id/review: 201, 중복 409, 남의 예약 404, 미완료 409, 잘못된 입력 400, 인증 없음 401', async () => {
+    const own = await makeListing(db.pool);
+    const { bookingId } = await completedBooking(t.ctx, t.gateway, db.pool, alice, own, futureWindow(nextDay(), 1, 1));
+    const post = async (user: string | null, id: string, body: unknown) => call(await reviewPOST(req('POST', `/api/bookings/${id}/review`, { user, body }), ctxParams(id)));
+
+    expect((await post(null, bookingId, { rating: 5 })).status).toBe(401);
+    expect((await post(bob, bookingId, { rating: 5 })).status).toBe(404);
+    expect((await post(alice, 'not-a-uuid', { rating: 5 })).status).toBe(404);
+    expect((await post(alice, bookingId, { rating: 9 })).status).toBe(400);
+    const ok = await post(alice, bookingId, { rating: 5, body: '좋았어요' });
+    expect(ok.status).toBe(201);
+    expect(ok.body).toMatchObject({ rating: 5, body: '좋았어요', authorName: expect.stringMatching(/\*\*$/) });
+    const dup = await post(alice, bookingId, { rating: 1 });
+    expect(dup.status).toBe(409);
+    expect(dup.body.error.code).toBe('REVIEW_EXISTS');
+
+    const pending = await createViaApi(alice, futureWindow(nextDay(), 1, 1));
+    const notDone = await post(alice, pending.booking.id, { rating: 5 });
+    expect(notDone.status).toBe(409);
+    expect(notDone.body.error.code).toBe('BOOKING_NOT_REVIEWABLE');
+
+    // 예약 상태 조회에는 내 후기와 canReview 가 포함된다
+    const mine = await call(await bookingGET(req('GET', '/x', { user: alice }), ctxParams(bookingId)));
+    expect(mine.body).toMatchObject({ canReview: false, review: { rating: 5 } });
+  });
+
+  it('GET /api/listings/:id/reviews: 공개 조회, 커서 페이지네이션, 잘못된 limit·cursor 는 400', async () => {
+    const own = await makeListing(db.pool);
+    for (let i = 0; i < 3; i++) {
+      const u = await demoUser(`r${i}`);
+      const { bookingId } = await completedBooking(t.ctx, t.gateway, db.pool, u, own, futureWindow(nextDay(), 1, 1));
+      await call(await reviewPOST(req('POST', '/x', { user: u, body: { rating: 3 + (i % 3), body: `후기${i}` } }), ctxParams(bookingId)));
+    }
+    const get = async (qs: string, id = own.id) => call(await reviewsGET(req('GET', `/api/listings/${id}/reviews${qs}`), ctxParams(id)));
+    const first = await get('?limit=2');
+    expect(first.status).toBe(200);
+    expect(first.body.reviews).toHaveLength(2);
+    expect(first.body.summary).toEqual({ count: 3, average: 4 });
+    expect(first.body.nextCursor).toEqual(expect.any(String));
+    const second = await get(`?limit=2&cursor=${encodeURIComponent(first.body.nextCursor)}`);
+    expect(second.body.reviews).toHaveLength(1);
+    expect(second.body.nextCursor).toBeNull();
+    expect(JSON.stringify([first.body, second.body])).not.toMatch(/@demo|author_id|consumer/);
+
+    expect((await get('?limit=0')).status).toBe(400);
+    expect((await get('?limit=51')).status).toBe(400);
+    expect((await get('?limit=abc')).status).toBe(400);
+    expect((await get('?cursor=garbage')).status).toBe(400);
+    expect((await get('?extra=1')).status).toBe(400);
+    expect((await get('', randomUUID())).status).toBe(404);
+    expect((await get('', 'not-a-uuid')).status).toBe(404);
   });
 });

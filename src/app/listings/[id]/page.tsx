@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { BookingForm } from '@/components/BookingForm';
+import { ReviewList } from '@/components/ReviewList';
 import { getContext } from '@/server/context';
 
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       <h1>{l.title}</h1>
       <p className="sub">{l.kind === 'STUDIO' ? '촬영 스튜디오' : '촬영 장비'} · 날짜와 시간을 고르면 예약 가능 여부를 바로 보여줘요.</p>
       <BookingForm listing={{ id: l.id, title: l.title, kind: l.kind, hourlyPrice: Number(l.hourly_price) }} />
+      <ReviewList listingId={l.id} />
     </>
   );
 }
