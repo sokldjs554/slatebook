@@ -37,6 +37,12 @@ export const reviewListQuerySchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 
+/** 호스트가 정하는 시간당 가격(원). 이미 잡힌 예약은 예약 시점의 스냅샷을 쓰므로 바꿔도 영향이 없다. */
+export const updateListingPriceSchema = z.strictObject({
+  hourlyPrice: z.number().int().min(1_000).max(10_000_000),
+});
+export type UpdateListingPriceInput = z.infer<typeof updateListingPriceSchema>;
+
 export const availabilityQuerySchema = z.strictObject({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });

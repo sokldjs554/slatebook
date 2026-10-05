@@ -8,8 +8,9 @@ export async function GET(req: Request) {
   return handle(async () => {
     const ctx = getContext();
     if (!ctx.config.demoAuth) throw new NotFoundError();
-    const { rows } = await ctx.pool.query<{ id: string; name: string }>(
-      `SELECT id, name FROM users WHERE email LIKE '%@demo.slatebook.local' ORDER BY name`,
+    const { rows } = await ctx.pool.query<{ id: string; name: string; host: boolean }>(
+      `SELECT u.id, u.name, EXISTS (SELECT 1 FROM host_profiles h WHERE h.user_id = u.id) AS host
+         FROM users u WHERE u.email LIKE '%@demo.slatebook.local' ORDER BY u.name`,
     );
     const cookie = readCookie(req.headers.get('cookie'), DEMO_COOKIE);
     const current = rows.find((u) => u.id === cookie)?.id ?? null;

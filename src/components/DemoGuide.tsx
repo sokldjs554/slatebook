@@ -11,6 +11,7 @@ export function DemoGuide() {
         <li><strong>승인 후 응답 유실</strong> — 실패 안내 없이 &ldquo;결제를 확인하고 있어요&rdquo;가 뜨고, 잠시 뒤 서버가 PG 를 확인해 예약이 확정돼요.</li>
         <li><strong>결제창 닫기</strong> — 결제 없이 나가도 예약은 10분간 유지돼요. 홈의 안내 링크로 돌아오면 이어서 결제할 수 있어요.</li>
         <li><strong>이용 완료 → 후기</strong> — 확정된 예약 화면의 &ldquo;데모 전용&rdquo; 버튼으로 이용을 끝낸 뒤 별점과 후기를 남겨요. 상품 목록의 평점이 바로 바뀝니다.</li>
+        <li><strong>호스트 정산</strong> — <em>호스트(스튜디오 사장님)</em>를 고르고 위쪽 &ldquo;호스트 화면&rdquo;을 열면 이용이 끝난 예약의 정산 내역이 원장에서 읽혀 나와요. 가격을 바꿔도 이미 잡힌 예약의 금액은 그대로예요.</li>
       </ol>
       <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>가짜 PG 데모이며 실제 결제는 일어나지 않아요. 구현과 검증 내용은 저장소 README 에 있어요.</p>
     </details>

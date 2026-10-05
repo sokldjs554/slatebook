@@ -230,6 +230,20 @@ const MUTANTS: Mutant[] = [
     to: "    case 'READY':\n      return 'DONE';",
   },
   {
+    id: 'statement-ignores-owner',
+    why: '호스트 정산 내역에서 소유자 조건을 뺀다 → 다른 호스트의 예약·정산액이 보인다',
+    file: 'src/server/host/statement.ts',
+    from: "AND l.host_id = $1\n      GROUP BY",
+    to: "AND $1::uuid IS NOT NULL\n      GROUP BY",
+  },
+  {
+    id: 'price-update-no-ownership',
+    why: '가격 변경에서 상품 소유자를 확인하지 않는다 → 남의 상품 가격을 바꿀 수 있다',
+    file: 'src/server/host/pricing.ts',
+    from: 'WHERE id = $2 AND host_id = $3',
+    to: 'WHERE id = $2 AND $3::uuid IS NOT NULL',
+  },
+  {
     id: 'no-buffer-in-slot',
     why: '슬롯에 정리 버퍼를 포함하지 않는다 → 다음 손님이 정리 시간 없이 들어온다',
     file: 'src/server/bookings/create.ts',

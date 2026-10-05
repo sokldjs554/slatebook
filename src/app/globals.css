@@ -78,3 +78,8 @@ button.block, .btn.block { display: block; width: 100%; }
 .pg .banner { font-size: 12px; text-align: center; color: var(--muted); margin-bottom: 12px; }
 /* 별점 선택: 라디오 입력은 보이지 않게 숨겨 두었으므로, 키보드로 이동했을 때 어느 별에 있는지 표시한다 */
 label:has(input[type='radio']:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+/* 호스트 정산 내역 표 */
+table.ledger { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 12px; }
+.ledger th, .ledger td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.ledger th { color: var(--muted); font-weight: 600; font-size: 13px; }
+.ledger .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

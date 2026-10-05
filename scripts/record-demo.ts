@@ -231,6 +231,14 @@ async function main() {
   await caption(page, '홈의 평점에 바로 반영됐어요 (A홀 후기 7개 → 8개)');
   await sleep(2600);
   await shot(page, '08-home-rating');
+
+  // ── ⑧ 호스트 화면: 원장에서 읽는 정산 내역 ───────────────
+  await switchUser(page, '호스트(스튜디오 사장님)');
+  await click(page, page.getByRole('link', { name: '호스트 화면' }));
+  await page.getByText('정산 내역 (이용 완료)').waitFor();
+  await caption(page, '⑧ 호스트 화면 — 정산액은 예약 화면 숫자가 아니라 원장(복식부기)에서 읽어요');
+  await sleep(2600);
+  await shot(page, '09-host-statement');
   await caption(page, 'github.com/sokldjs554/slatebook — 동시성 · 결제 예외 · 원장 · 테스트 검증');
   await sleep(2600);
 

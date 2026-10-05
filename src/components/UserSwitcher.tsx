@@ -1,10 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
 interface DemoUsers {
-  users: { id: string; name: string }[];
+  users: { id: string; name: string; host: boolean }[];
   current: string | null;
 }
 
@@ -22,6 +23,7 @@ export function UserSwitcher() {
   }, []);
 
   if (!data) return null;
+  const current = data.users.find((u) => u.id === data.current);
 
   async function change(userId: string) {
     setBusy(true);
@@ -41,6 +43,7 @@ export function UserSwitcher() {
           <option key={u.id} value={u.id}>{u.name}</option>
         ))}
       </select>
+      {current?.host && <Link href="/host" className="btn secondary" style={{ padding: '6px 10px', fontSize: 14 }}>호스트 화면</Link>}
     </div>
   );
 }

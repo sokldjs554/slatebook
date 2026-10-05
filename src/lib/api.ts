@@ -5,7 +5,7 @@ export type ApiResult<T> =
   | { ok: false; status: number; code: string; message: string; details?: Record<string, unknown>; retryAfterSec?: number };
 
 interface ApiInit {
-  method?: 'GET' | 'POST' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   headers?: Record<string, string>;
   signal?: AbortSignal;
